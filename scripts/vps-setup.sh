@@ -51,7 +51,11 @@ $RUN_SUDO ufw --force enable >/dev/null || true
 
 if ! command -v node >/dev/null 2>&1; then
   log "Installing Node.js LTS..."
-  curl -fsSL https://deb.nodesource.com/setup_lts.x | $RUN_SUDO -E bash -
+  if [[ -n "$RUN_SUDO" ]]; then
+    curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+  else
+    curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+  fi
   $RUN_SUDO apt install -y nodejs
 fi
 
