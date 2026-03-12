@@ -28,29 +28,31 @@ get_public_ip() {
   curl -fsS --max-time 5 https://checkip.amazonaws.com 2>/dev/null | tr -d '\n' || true
 }
 
+# When root, run commands directly; otherwise use sudo
 if [[ "$(id -u)" -eq 0 ]]; then
-  log "Please run as a normal user (not root). This script uses sudo when needed."
-  exit 1
-fi
-
-if ! command -v sudo >/dev/null 2>&1; then
-  echo "sudo is required."
-  exit 1
+  RUN_SUDO=""
+  log "Running as root. Script will work without sudo."
+else
+  RUN_SUDO="sudo"
+  if ! command -v sudo >/dev/null 2>&1; then
+    echo "sudo is required when not root."
+    exit 1
+  fi
 fi
 
 log "Installing system packages (nginx, ufw, curl)..."
-sudo apt update -y
-sudo apt install -y nginx ufw curl ca-certificates
+$RUN_SUDO apt update -y
+$RUN_SUDO apt install -y nginx ufw curl ca-certificates
 
 log "Configuring firewall (UFW)..."
-sudo ufw allow OpenSSH >/dev/null || true
-sudo ufw allow 'Nginx Full' >/dev/null || true
-sudo ufw --force enable >/dev/null || true
+$RUN_SUDO ufw allow OpenSSH >/dev/null || true
+$RUN_SUDO ufw allow 'Nginx Full' >/dev/null || true
+$RUN_SUDO ufw --force enable >/dev/null || true
 
 if ! command -v node >/dev/null 2>&1; then
   log "Installing Node.js LTS..."
-  curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
-  sudo apt install -y nodejs
+  curl -fsSL https://deb.nodesource.com/setup_lts.x | $RUN_SUDO -E bash -
+  $RUN_SUDO apt install -y nodejs
 fi
 
 log "Node version: $(node -v)"
@@ -85,20 +87,24 @@ set_kv () {
 [[ -n "${GMAIL_APP_PASSWORD:-}" ]] && set_kv "GMAIL_APP_PASSWORD" "${GMAIL_APP_PASSWORD}"
 
 log "Installing PM2..."
-sudo npm i -g pm2
+$RUN_SUDO npm i -g pm2
 
 log "Starting app with PM2..."
 pm2 start "$APP_DIR/server.js" --name "$PROJECT_NAME"
 pm2 save
 
 log "Enabling PM2 startup on boot..."
-pm2 startup systemd -u "$USER" --hp "$HOME" | tail -n 1 | bash || true
+if [[ -n "$RUN_SUDO" ]]; then
+  pm2 startup systemd -u "${SUDO_USER:-$USER}" --hp "${HOME:-/root}" | tail -n 1 | bash || true
+else
+  pm2 startup systemd | tail -n 1 | bash || true
+fi
 
 APP_PORT="${PORT:-3000}"
 
 if [[ -n "${DOMAIN:-}" ]]; then
   log "Configuring Nginx for domain: ${DOMAIN}"
-  sudo tee "/etc/nginx/sites-available/${PROJECT_NAME}" >/dev/null <<EOF
+  $RUN_SUDO tee "/etc/nginx/sites-available/${PROJECT_NAME}" >/dev/null <<EOF
 server {
   listen 80;
   server_name ${DOMAIN};
@@ -113,19 +119,19 @@ server {
   }
 }
 EOF
-  sudo ln -sf "/etc/nginx/sites-available/${PROJECT_NAME}" "/etc/nginx/sites-enabled/${PROJECT_NAME}"
-  sudo nginx -t
-  sudo systemctl reload nginx
+  $RUN_SUDO ln -sf "/etc/nginx/sites-available/${PROJECT_NAME}" "/etc/nginx/sites-enabled/${PROJECT_NAME}"
+  $RUN_SUDO nginx -t
+  $RUN_SUDO systemctl reload nginx
 
   if [[ "${ENABLE_SSL:-0}" == "1" ]]; then
     log "Installing Certbot and enabling HTTPS..."
-    sudo apt install -y certbot python3-certbot-nginx
-    sudo certbot --nginx -d "${DOMAIN}" --non-interactive --agree-tos -m "${CERTBOT_EMAIL:-admin@${DOMAIN}}" || true
+    $RUN_SUDO apt install -y certbot python3-certbot-nginx
+    $RUN_SUDO certbot --nginx -d "${DOMAIN}" --non-interactive --agree-tos -m "${CERTBOT_EMAIL:-admin@${DOMAIN}}" || true
   fi
 else
   log "DOMAIN not set. Using VPS IP access (http://<VPS_IP>:${APP_PORT})."
   log "Opening firewall port ${APP_PORT}/tcp..."
-  sudo ufw allow "${APP_PORT}/tcp" >/dev/null || true
+  $RUN_SUDO ufw allow "${APP_PORT}/tcp" >/dev/null || true
 
   # Auto-set BASE_URL if not provided and not already present in .env
   if ! grep -qE '^BASE_URL=' .env; then
