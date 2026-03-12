@@ -235,7 +235,7 @@ app.get('/unsubscribe', (req, res) => {
   const email = token ? tokenToEmail(token) : null;
   if (!email) {
     return res.status(400).send(`
-      <!DOCTYPE html><html><head><meta charset="utf-8"><title>Invalid link</title></head>
+      <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Invalid link</title></head>
       <body style="font-family:system-ui;max-width:480px;margin:2rem auto;padding:1rem;text-align:center;">
         <p>This link is invalid or has already been used.</p>
         <a href="/">Back to home</a>
@@ -246,7 +246,7 @@ app.get('/unsubscribe', (req, res) => {
   unsubscribedEmails.add(normalized);
   saveUnsubscribes();
   res.send(`
-    <!DOCTYPE html><html><head><meta charset="utf-8"><title>Unsubscribed</title></head>
+    <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Unsubscribed</title></head>
     <body style="font-family:system-ui;max-width:480px;margin:2rem auto;padding:1rem;text-align:center;">
       <h2>Unsubscribed</h2>
       <p>No more emails will be sent to: ${email}</p>
