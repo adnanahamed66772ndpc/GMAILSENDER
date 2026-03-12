@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const session = require('express-session');
 const nodemailer = require('nodemailer');
 const path = require('path');
 const fs = require('fs');
@@ -10,7 +11,51 @@ const DATA_DIR = path.join(__dirname, 'data');
 const UNSUBSCRIBES_FILE = path.join(DATA_DIR, 'unsubscribes.json');
 const SMTP_CONFIG_FILE = path.join(DATA_DIR, 'smtp.json');
 
+const SITE_USER = (process.env.SITE_USER || process.env.LOGIN_USER || '').trim();
+const SITE_PASSWORD = (process.env.SITE_PASSWORD || process.env.LOGIN_PASSWORD || '').trim();
+
 app.use(express.json({ limit: '25mb' }));
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'gmail-sender-secret-change-in-production',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 }
+}));
+
+function requireAuth(req, res, next) {
+  const allowed = ['/login', '/api/login', '/api/logout', '/logout', '/unsubscribe', '/api/ping'];
+  if (allowed.includes(req.path) || req.path.startsWith('/unsubscribe')) return next();
+  if (req.session && req.session.user) return next();
+  if (req.path === '/' || req.path === '') return res.redirect('/login');
+  if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Login required' });
+  next();
+}
+app.use(requireAuth);
+
+app.get('/login', (req, res) => {
+  if (req.session && req.session.user) return res.redirect('/');
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+app.post('/api/login', (req, res) => {
+  const { user, password } = req.body || {};
+  if (!SITE_USER || !SITE_PASSWORD) {
+    return res.status(500).json({ success: false, error: 'Server: Set SITE_USER and SITE_PASSWORD in .env' });
+  }
+  if (String(user).trim() === SITE_USER && String(password) === SITE_PASSWORD) {
+    req.session.user = SITE_USER;
+    return res.json({ success: true });
+  }
+  res.status(401).json({ success: false, error: 'Invalid username or password' });
+});
+app.get('/logout', (req, res) => {
+  req.session.destroy(() => {});
+  res.redirect('/login');
+});
+app.post('/api/logout', (req, res) => {
+  req.session.destroy(() => {});
+  res.json({ success: true });
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Unsubscribe list

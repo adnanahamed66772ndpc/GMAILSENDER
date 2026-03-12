@@ -2,6 +2,13 @@ const form = document.getElementById('emailForm');
 const sendBtn = document.getElementById('sendBtn');
 const messageEl = document.getElementById('message');
 
+function fetchAuth(url, options) {
+  return fetch(url, options).then(res => {
+    if (res.status === 401) window.location.href = '/login';
+    return res;
+  });
+}
+
 function showMessage(text, isError = false) {
   messageEl.textContent = text;
   messageEl.className = 'message show ' + (isError ? 'error' : 'success');
@@ -16,7 +23,7 @@ function hideMessage() {
 // Load SMTP settings on page load
 async function loadSmtp() {
   try {
-    const res = await fetch('/api/smtp');
+    const res = await fetchAuth('/api/smtp');
     const data = await res.json();
     if (data.source === 'web') {
       document.getElementById('smtpHost').value = data.host || '';
@@ -59,7 +66,7 @@ function loadUnsubList() {
   const uls = document.querySelectorAll('#unsubList, #unsubListSettings');
   if (!uls.length) return;
   const emptyHtml = '<li class="unsub-empty">Could not load list.</li>';
-  fetch('/api/unsubscribes')
+  fetchAuth('/api/unsubscribes')
     .then(res => res.json())
     .then(emails => {
       const html = renderUnsubList(emails);
@@ -71,7 +78,7 @@ function onRemoveUnsub(e) {
   if (!e.target.classList.contains('remove-unsub')) return;
   const email = e.target.getAttribute('data-email');
   if (!email) return;
-  fetch('/api/unsubscribes', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) })
+  fetchAuth('/api/unsubscribes', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) })
     .then(r => r.json())
     .then(data => { if (data.success) loadUnsubList(); })
     .catch(() => {});
@@ -121,7 +128,7 @@ smtpForm.addEventListener('submit', async (e) => {
   document.getElementById('smtpSaveBtn').disabled = true;
   smtpStatus.textContent = 'Saving...';
   try {
-    const res = await fetch('/api/smtp', {
+    const res = await fetchAuth('/api/smtp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -265,7 +272,7 @@ form.addEventListener('submit', async (e) => {
     const attachments = await readAttachments(document.getElementById('attachments'));
     const payload = { to, subject, text: body, html: body ? body.replace(/\n/g, '<br>') : '' };
     if (attachments.length) payload.attachments = attachments;
-    const res = await fetch('/api/send', {
+    const res = await fetchAuth('/api/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -334,7 +341,7 @@ bulkForm.addEventListener('submit', async (e) => {
     };
     if (attachments.length) payload.attachments = attachments;
 
-    const res = await fetch('/api/send-bulk-stream', {
+    const res = await fetchAuth('/api/send-bulk-stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)

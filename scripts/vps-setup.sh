@@ -85,6 +85,20 @@ set_kv () {
   fi
 }
 
+# Auto-generate site login if not set (so you can log in to the app)
+LOGIN_USER_GENERATED=""
+LOGIN_PASS_GENERATED=""
+if [[ -z "${SITE_USER:-}" ]] && ! grep -qE '^SITE_USER=.' .env 2>/dev/null; then
+  LOGIN_USER_GENERATED="admin"
+  set_kv "SITE_USER" "$LOGIN_USER_GENERATED"
+fi
+if [[ -z "${SITE_PASSWORD:-}" ]] && ! grep -qE '^SITE_PASSWORD=.' .env 2>/dev/null; then
+  LOGIN_PASS_GENERATED="$(openssl rand -base64 12 2>/dev/null)"
+  [[ -z "$LOGIN_PASS_GENERATED" ]] && LOGIN_PASS_GENERATED="$(date +%s | sha256sum | head -c 16)"
+  set_kv "SITE_PASSWORD" "$LOGIN_PASS_GENERATED"
+fi
+[[ -z "$LOGIN_USER_GENERATED" ]] && LOGIN_USER_GENERATED="$(grep -E '^SITE_USER=' .env 2>/dev/null | sed 's/^SITE_USER=//' | head -1)"
+
 [[ -n "${PORT:-}" ]] && set_kv "PORT" "${PORT}"
 [[ -n "${BASE_URL:-}" ]] && set_kv "BASE_URL" "${BASE_URL}"
 [[ -n "${GMAIL_USER:-}" ]] && set_kv "GMAIL_USER" "${GMAIL_USER}"
@@ -150,11 +164,34 @@ else
 fi
 
 log "Done."
-echo "App should be running via PM2."
-echo "- Local: http://127.0.0.1:${APP_PORT}"
+echo ""
+echo "App is running via PM2."
+echo ""
+
+# Show login URL and credentials (IP from VPS)
+FINAL_IP="$(get_public_ip)"
+FINAL_URL=""
 if [[ -n "${DOMAIN:-}" ]]; then
-  echo "- Domain: http://${DOMAIN}  (or https://${DOMAIN} if SSL enabled)"
-  echo "Important: set BASE_URL in .env to https://${DOMAIN} so unsubscribe links work."
+  FINAL_URL="https://${DOMAIN}"
+  [[ "${ENABLE_SSL:-0}" != "1" ]] && FINAL_URL="http://${DOMAIN}"
 else
-  echo "- IP: http://<VPS_IP>:${APP_PORT}"
+  [[ -n "$FINAL_IP" ]] && FINAL_URL="http://${FINAL_IP}:${APP_PORT}" || FINAL_URL="http://YOUR_VPS_IP:${APP_PORT}"
+fi
+
+echo "=============================================="
+echo "  LOGIN TO YOUR SITE (save this somewhere)"
+echo "=============================================="
+echo "  URL:      $FINAL_URL"
+echo "  Username: ${LOGIN_USER_GENERATED:-admin}"
+if [[ -n "$LOGIN_PASS_GENERATED" ]]; then
+  echo "  Password: $LOGIN_PASS_GENERATED"
+else
+  echo "  Password: (see SITE_PASSWORD in .env)"
+fi
+echo "=============================================="
+echo ""
+if [[ -n "${DOMAIN:-}" ]]; then
+  echo "BASE_URL in .env: set to $FINAL_URL for unsubscribe links."
+else
+  echo "Local: http://127.0.0.1:${APP_PORT}"
 fi

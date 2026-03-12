@@ -238,6 +238,22 @@ body {
 header {
   text-align: center;
   margin-bottom: 2rem;
+  position: relative;
+}
+.logout-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+  text-decoration: none;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.logout-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
 }
 
 header h1 {

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login – Gmail Sender</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>✉️ Gmail Sender</h1>
+      <p>Sign in to continue</p>
+    </header>
+    <section class="compose-box">
+      <form id="loginForm">
+        <div class="field">
+          <label for="loginUser">Username</label>
+          <input type="text" id="loginUser" name="user" placeholder="Username" required autocomplete="username">
+        </div>
+        <div class="field">
+          <label for="loginPassword">Password</label>
+          <input type="password" id="loginPassword" name="password" placeholder="Password" required autocomplete="current-password">
+        </div>
+        <p id="loginError" class="message error" style="display:none; margin-bottom:1rem;"></p>
+        <button type="submit" id="loginBtn">Sign in</button>
+      </form>
+    </section>
+  </div>
+  <script>
+    const form = document.getElementById('loginForm');
+    const loginBtn = document.getElementById('loginBtn');
+    const loginError = document.getElementById('loginError');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      loginError.style.display = 'none';
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Signing in...';
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user: document.getElementById('loginUser').value.trim(),
+            password: document.getElementById('loginPassword').value
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (data.success) {
+          window.location.href = '/';
+          return;
+        }
+        loginError.textContent = data.error || 'Invalid username or password.';
+        loginError.style.display = 'block';
+      } catch (err) {
+        loginError.textContent = 'Network error.';
+        loginError.style.display = 'block';
+      }
+      loginBtn.disabled = false;
+      loginBtn.textContent = 'Sign in';
+    });
+  </script>
+</body>
+</html>
