@@ -74,3 +74,160 @@ npm start
 
 - App Password কখনো ফ্রন্টএন্ড বা পাবলিক জায়গায় দেবেন না
 - `.env` ফাইল গিটে কমিট করবেন না (ইতিমধ্যে নিরাপদ রাখার জন্য সতর্ক থাকুন)
+
+## Deploy on any VPS (Ubuntu) – Production Guide
+
+নিচের গাইডটা Ubuntu VPS (DigitalOcean/Vultr/Hetzner/AWS) এ deploy করার জন্য। আপনি অন্য Linux ব্যবহার করলেও ধাপগুলো প্রায় একই।
+
+### Quick auto setup (clone তারপর এক কমান্ড)
+
+VPS এ আপনার repo clone করার পর নিচেরটা চালান:
+
+```bash
+bash scripts/vps-setup.sh
+```
+
+Optional (domain + SSL + env values) একসাথে:
+
+```bash
+export DOMAIN=yourdomain.com
+export PORT=3000
+export BASE_URL=https://yourdomain.com
+export ENABLE_SSL=1
+export GMAIL_USER=you@gmail.com
+export GMAIL_APP_PASSWORD="xxxx xxxx xxxx xxxx"
+bash scripts/vps-setup.sh
+```
+
+এই স্ক্রিপ্ট:
+- Nginx + UFW সেট করে
+- Node.js LTS ইনস্টল করে (না থাকলে)
+- `npm ci` রান করে
+- `.env` তৈরি করে (না থাকলে) এবং উপরের env দিলে সেট করে
+- PM2 দিয়ে `server.js` রান করে এবং reboot এ auto-start সেট করে
+- `DOMAIN` দিলে Nginx reverse proxy কনফিগার করে
+- `ENABLE_SSL=1` দিলে Certbot দিয়ে HTTPS চালু করে
+
+### 1) VPS প্রস্তুত করুন
+
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y git nginx ufw
+```
+
+Firewall (recommended):
+
+```bash
+sudo ufw allow OpenSSH
+sudo ufw allow 'Nginx Full'
+sudo ufw enable
+```
+
+### 2) Node.js ইনস্টল করুন
+
+আপনার সার্ভারে Node.js LTS ইনস্টল করুন (NodeSource ব্যবহার করলে সহজ হয়):
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+sudo apt install -y nodejs
+node -v
+npm -v
+```
+
+### 3) প্রজেক্ট সার্ভারে আনুন
+
+```bash
+cd /var/www
+sudo mkdir -p gmail-sender
+sudo chown -R $USER:$USER /var/www/gmail-sender
+git clone <YOUR_REPO_URL> /var/www/gmail-sender
+cd /var/www/gmail-sender
+npm ci
+```
+
+### 4) `.env` সেট করুন
+
+`.env.example` দেখে সার্ভারে `.env` বানান:
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+Recommended values:
+
+- `PORT=3000` (অথবা অন্য কোনো পোর্ট)
+- `BASE_URL=https://yourdomain.com` (unsubscribe link ঠিক রাখতে)
+- Gmail ব্যবহার করলে: `GMAIL_USER` + `GMAIL_APP_PASSWORD`
+
+আপনি যদি ওয়েব UI থেকে SMTP সেট করেন, সেটি `data/smtp.json` এ সেভ হবে। Production এ চাইলে এটাও backup রাখুন।
+
+### 5) PM2 দিয়ে সার্ভার রান করুন (recommended)
+
+```bash
+sudo npm i -g pm2
+pm2 start server.js --name gmail-sender
+pm2 save
+pm2 startup
+```
+
+`pm2 startup` কমান্ড যেটা দেখাবে সেটা কপি করে রান করলে reboot এর পরেও সার্ভার auto start হবে।
+
+### 6) Nginx Reverse Proxy (Domain সহ)
+
+নিচের ফাইল বানান:
+
+```bash
+sudo nano /etc/nginx/sites-available/gmail-sender
+```
+
+Config (domain বদলাবেন):
+
+```nginx
+server {
+  listen 80;
+  server_name yourdomain.com;
+
+  location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection 'upgrade';
+    proxy_set_header Host $host;
+    proxy_cache_bypass $http_upgrade;
+  }
+}
+```
+
+Enable + reload:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/gmail-sender /etc/nginx/sites-enabled/gmail-sender
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+এখন `http://yourdomain.com` এ আপনার app ওপেন হবে।
+
+### 7) HTTPS (Optional but recommended)
+
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d yourdomain.com
+```
+
+Certbot auto-renew সাধারণত সেট করে দেয়।
+
+### 8) Update / Redeploy
+
+```bash
+cd /var/www/gmail-sender
+git pull
+npm ci
+pm2 restart gmail-sender
+```
+
+### Notes
+
+- Gmail bulk sending এ limit থাকে। `BULK_DELAY_MS` বাড়ালে block হওয়ার সম্ভাবনা কমে।
+- Attachment পাঠালে request বড় হয়, তাই server JSON limit বাড়ানো আছে। তবুও খুব বড় ফাইল পাঠাবেন না।
