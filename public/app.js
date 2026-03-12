@@ -268,6 +268,10 @@ form.addEventListener('submit', async (e) => {
   sendBtn.disabled = true;
   sendBtn.textContent = 'Sending...';
 
+  const FETCH_TIMEOUT_MS = 60000; // 60 seconds
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
   try {
     const attachments = await readAttachments(document.getElementById('attachments'));
     const payload = { to, subject, text: body, html: body ? body.replace(/\n/g, '<br>') : '' };
@@ -275,14 +279,16 @@ form.addEventListener('submit', async (e) => {
     const res = await fetchAuth('/api/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
 
     let data;
     try {
       data = await res.json();
     } catch (_) {
-      showMessage(res.ok ? 'Invalid response from server.' : 'Server error ' + res.status + '. Run: npm start', true);
+      showMessage(res.ok ? 'Invalid response from server.' : 'Server error ' + res.status + '.', true);
       return;
     }
 
@@ -295,8 +301,13 @@ form.addEventListener('submit', async (e) => {
       showMessage(data.error || 'Something went wrong.', true);
     }
   } catch (err) {
-    const url = window.location.origin || 'http://localhost:3000';
-    showMessage('Cannot reach server. Open ' + url + ' in the browser and run: npm start', true);
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      showMessage('Request timed out. Check SMTP settings and try again.', true);
+    } else {
+      const url = window.location.origin || 'http://localhost:3000';
+      showMessage('Cannot reach server. Open ' + url + ' in the browser and run: npm start', true);
+    }
   } finally {
     sendBtn.disabled = false;
     sendBtn.textContent = 'Send Email';

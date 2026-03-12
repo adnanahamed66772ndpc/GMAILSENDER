@@ -298,8 +298,12 @@ app.post('/api/send', async (req, res) => {
   };
   if (attachmentsList) mailOptions.attachments = attachmentsList;
 
+  const SEND_TIMEOUT_MS = parseInt(process.env.SEND_TIMEOUT_MS, 10) || 30000;
   try {
-    const info = await transporter.sendMail(mailOptions);
+    const info = await Promise.race([
+      transporter.sendMail(mailOptions),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Send timed out. Check SMTP settings and network.')), SEND_TIMEOUT_MS))
+    ]);
     res.json({ success: true, message: 'Email sent!', messageId: info.messageId });
   } catch (err) {
     console.error(err);
