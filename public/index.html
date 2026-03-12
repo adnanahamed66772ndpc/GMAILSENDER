@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gmail Sender – App Password</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>✉️ Gmail Sender</h1>
+      <p>Send email from the web using Gmail or any SMTP</p>
+    </header>
+
+    <nav class="tabs" role="tablist">
+      <button type="button" class="tab active" role="tab" id="tab-smtp" aria-selected="true" aria-controls="panel-smtp">SMTP Settings</button>
+      <button type="button" class="tab" role="tab" id="tab-send" aria-selected="false" aria-controls="panel-send">Send Email</button>
+      <button type="button" class="tab" role="tab" id="tab-bulk" aria-selected="false" aria-controls="panel-bulk">Bulk Email</button>
+    </nav>
+
+    <div id="panel-smtp" class="tab-panel active" role="tabpanel" aria-labelledby="tab-smtp">
+    <section class="compose-box smtp-box">
+      <h2 class="bulk-title">SMTP Settings</h2>
+      <p class="smtp-hint">Use Gmail (.env) or enter any SMTP below. Web settings override .env.</p>
+      <form id="smtpForm">
+        <div class="field-row">
+          <div class="field">
+            <label for="smtpHost">Host</label>
+            <input type="text" id="smtpHost" name="host" placeholder="smtp.gmail.com" value="smtp.gmail.com">
+          </div>
+          <div class="field">
+            <label for="smtpPort">Port</label>
+            <div class="input-with-hint">
+              <input type="number" id="smtpPort" name="port" placeholder="587" value="587">
+              <span class="hint-tooltip" title="587 = STARTTLS (Gmail). 465 = SSL. Secure is set automatically by port.">
+                <i class="fa-solid fa-circle-info hint-icon" aria-hidden="true"></i>
+                <span class="hint-text">587 = STARTTLS (Gmail). 465 = SSL. Secure is set automatically by port.</span>
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="field checkbox-field">
+          <label>
+            <input type="checkbox" id="smtpSecure" name="secure">
+            Secure (SSL/TLS) — ignored; set automatically by port above
+          </label>
+        </div>
+        <div class="field">
+          <label for="smtpUser">Username (email)</label>
+          <input type="text" id="smtpUser" name="user" placeholder="you@gmail.com">
+        </div>
+        <div class="field">
+          <label for="smtpPass">Password (App Password for Gmail)</label>
+          <input type="password" id="smtpPass" name="pass" placeholder="••••••••" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="smtpFromEmail">From email (optional)</label>
+          <input type="email" id="smtpFromEmail" name="fromEmail" placeholder="Leave blank to use username">
+        </div>
+        <div class="field">
+          <label for="smtpFromName">From name (optional)</label>
+          <input type="text" id="smtpFromName" name="fromName" placeholder="Your Name">
+        </div>
+        <button type="submit" id="smtpSaveBtn">Save SMTP</button>
+      </form>
+      <p id="smtpStatus" class="smtp-status"></p>
+      <div class="unsub-list-box">
+        <p class="unsub-list-title">Unsubscribed emails (skipped in bulk send)</p>
+        <ul id="unsubListSettings" class="unsub-list"></ul>
+        <p class="field-hint">Click Remove to allow sending to that email again.</p>
+      </div>
+    </section>
+    </div>
+
+    <div id="panel-send" class="tab-panel" role="tabpanel" aria-labelledby="tab-send" hidden>
+    <form id="emailForm" class="compose-box">
+      <div class="field">
+        <label for="to">To</label>
+        <input type="email" id="to" name="to" placeholder="example@gmail.com" required>
+      </div>
+      <div class="field">
+        <label for="subject">Subject</label>
+        <input type="text" id="subject" name="subject" placeholder="Email subject">
+      </div>
+      <div class="field">
+        <label for="body">Message</label>
+        <textarea id="body" name="body" rows="8" placeholder="Type your message..."></textarea>
+      </div>
+      <div class="field">
+        <label for="attachments">Attachments (optional)</label>
+        <input type="file" id="attachments" name="attachments" multiple>
+        <span class="field-hint" id="attachList"></span>
+      </div>
+      <button type="submit" id="sendBtn">Send Email</button>
+    </form>
+    </div>
+
+    <div id="panel-bulk" class="tab-panel" role="tabpanel" aria-labelledby="tab-bulk" hidden>
+    <section class="compose-box bulk-box">
+      <h2 class="bulk-title">Bulk Email (multiple recipients)</h2>
+      <form id="bulkForm">
+        <div class="field">
+          <label for="bulkTo">Recipient emails (one per line, or comma-separated)</label>
+          <div class="csv-actions">
+            <a href="sample-recipients.csv" download class="link-btn">Download sample CSV (email,name)</a>
+            <a href="sample-bulk-email.csv" download class="link-btn">Download sample (email,first_name,last_name)</a>
+            <a href="sample-all-fields.csv" download class="link-btn">Download sample (email,name,company,notes)</a>
+            <label class="file-label">
+              <input type="file" id="csvFile" accept=".csv" hidden>
+              Upload CSV
+            </label>
+          </div>
+          <textarea id="bulkTo" name="bulkTo" rows="6" placeholder="one@mail.com&#10;two@mail.com&#10;three@mail.com"></textarea>
+        </div>
+        <div class="field">
+          <label for="bulkSubject">Subject</label>
+          <input type="text" id="bulkSubject" name="bulkSubject" placeholder="Email subject">
+        </div>
+        <div class="field">
+          <label for="bulkBody">Message</label>
+          <textarea id="bulkBody" name="bulkBody" rows="8" placeholder="Type your message..."></textarea>
+        </div>
+        <div class="field">
+          <label for="bulkAttachments">Attachments (optional, sent to all)</label>
+          <input type="file" id="bulkAttachments" name="bulkAttachments" multiple>
+          <span class="field-hint" id="bulkAttachList"></span>
+        </div>
+        <div class="field checkbox-field">
+          <label>
+            <input type="checkbox" id="addUnsubscribeLink" name="addUnsubscribeLink" checked>
+            Add auto-generated unsubscribe link to each email
+          </label>
+        </div>
+        <button type="submit" id="bulkSendBtn">Send Bulk Email</button>
+      </form>
+      <div class="unsub-list-box">
+        <p class="unsub-list-title">Unsubscribed (skipped in bulk send)</p>
+        <ul id="unsubList" class="unsub-list"></ul>
+        <p class="field-hint">Remove an email to allow sending to them again.</p>
+      </div>
+    </section>
+    </div>
+
+    <div id="message" class="message" aria-live="polite"></div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
