@@ -329,6 +329,83 @@ app.post('/api/send-bulk', async (req, res) => {
   });
 });
 
+// Bulk send with live progress (SSE stream)
+app.post('/api/send-bulk-stream', async (req, res) => {
+  const { to, subject, text, html, addUnsubscribeLink, attachments } = req.body;
+
+  if (!to || !subject) {
+    return res.status(400).json({ success: false, error: 'Recipient list and Subject are required' });
+  }
+  if (!hasSmtp()) {
+    return res.status(500).json({
+      success: false,
+      error: 'SMTP not configured. Set in SMTP Settings below or add GMAIL_USER and GMAIL_APP_PASSWORD to .env'
+    });
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const rawList = typeof to === 'string' ? to : (Array.isArray(to) ? to.join('\n') : '');
+  const emails = rawList
+    .split(/[\n,;]+/)
+    .map(e => e.trim().toLowerCase())
+    .filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+  const unique = [...new Set(emails)];
+  const total = unique.length;
+
+  const addLink = addUnsubscribeLink !== false;
+  const results = { sent: 0, skipped: 0, failed: 0, failedEmails: [] };
+  const delayMs = Math.max(200, parseInt(process.env.BULK_DELAY_MS, 10) || 400);
+
+  const sendEvent = (obj) => {
+    res.write('data: ' + JSON.stringify(obj) + '\n\n');
+    if (typeof res.flush === 'function') res.flush();
+  };
+
+  let processed = 0;
+  for (const email of unique) {
+    if (unsubscribedEmails.has(email)) {
+      results.skipped++;
+      processed++;
+      sendEvent({ ...results, total, processed });
+      continue;
+    }
+    const unsub = getUnsubscribeBlock(email, addLink);
+    const textBody = (text || '').trim();
+    const htmlBody = (html || (textBody ? textBody.replace(/\n/g, '<br>') : '')).trim();
+    const finalText = textBody + unsub.text;
+    const finalHtml = htmlBody + unsub.html;
+
+    const mailOptions = {
+      from: `"${getFromName()}" <${getFromEmail()}>`,
+      replyTo: getFromEmail(),
+      to: email,
+      subject: subject.trim(),
+      text: finalText,
+      html: finalHtml,
+      headers: { 'X-Priority': '3', 'X-Mailer': 'Gmail Sender (Node)' }
+    };
+    const attachmentsList = parseAttachments(attachments);
+    if (attachmentsList) mailOptions.attachments = attachmentsList;
+    try {
+      await transporter.sendMail(mailOptions);
+      results.sent++;
+    } catch (err) {
+      results.failed++;
+      results.failedEmails.push({ email, error: err.message });
+    }
+    processed++;
+    sendEvent({ ...results, total, processed });
+    await new Promise(r => setTimeout(r, delayMs));
+  }
+
+  sendEvent({ done: true, ...results, total });
+  res.end();
+});
+
 app.listen(PORT, () => {
   console.log(`Server running: http://localhost:${PORT}`);
 });

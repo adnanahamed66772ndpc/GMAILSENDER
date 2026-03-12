@@ -75,6 +75,55 @@ npm start
 - App Password কখনো ফ্রন্টএন্ড বা পাবলিক জায়গায় দেবেন না
 - `.env` ফাইল গিটে কমিট করবেন না (ইতিমধ্যে নিরাপদ রাখার জন্য সতর্ক থাকুন)
 
+## Deployment কিভাবে করবেন (VPS এ)
+
+VPS এ একবার সেটআপ করতে চাইলে নিচের ধাপগুলো অনুসরণ করুন।
+
+### ধাপ ১: VPS এ প্রজেক্ট আনুন
+
+VPS এ SSH দিয়ে ঢুকে (Ubuntu/Debian ধরুন):
+
+```bash
+sudo apt update && sudo apt install -y git
+git clone https://github.com/adnanahamed66772ndpc/GMAILSENDER.git
+cd GMAILSENDER
+```
+
+### ধাপ ২: Auto setup script চালান
+
+একটাই কমান্ড – এর মধ্যে Node, PM2, firewall, `.env` ইত্যাদি সেট হয়ে যাবে:
+
+```bash
+bash scripts/vps-setup.sh
+```
+
+**Domain ব্যবহার করবেন না** (শুধু VPS IP দিয়ে ঢুকবেন) তাহলে কিছু extra সেট করবেন না। Script নিজে থেকে port খুলে দেবে আর `BASE_URL` ঠিক করে দেবে।
+
+**Domain + SSL চাইলে** আগে এগুলো সেট করে তারপর script চালান:
+
+```bash
+export DOMAIN=yourdomain.com
+export BASE_URL=https://yourdomain.com
+export ENABLE_SSL=1
+bash scripts/vps-setup.sh
+```
+
+### ধাপ ৩: Gmail / SMTP সেট করুন
+
+দুইভাবে একটাও করতে হবে:
+
+- **Option A:** `.env` ফাইল এডিট করে দিন: `GMAIL_USER=আপনার@gmail.com` এবং `GMAIL_APP_PASSWORD=আপনার অ্যাপ পাসওয়ার্ড`
+- **Option B:** ব্রাউজারে app খুলে **SMTP Settings** ট্যাবে গিয়ে Host, Username, Password সেভ করুন
+
+### ধাপ ৪: UI এ ঢুকুন
+
+- **শুধু IP:** ব্রাউজারে যান `http://আপনার_VPS_IP:3000`
+- **Domain দিয়ে:** `http://yourdomain.com` বা `https://yourdomain.com` (SSL চালু থাকলে)
+
+বিস্তারিত ধাপ ও ট্রাবলশুটিং নিচের **Deploy on any VPS** সেকশনে আছে।
+
+---
+
 ## Deploy on any VPS (Ubuntu) – Production Guide
 
 নিচের গাইডটা Ubuntu VPS (DigitalOcean/Vultr/Hetzner/AWS) এ deploy করার জন্য। আপনি অন্য Linux ব্যবহার করলেও ধাপগুলো প্রায় একই।

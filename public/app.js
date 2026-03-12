@@ -320,6 +320,8 @@ bulkForm.addEventListener('submit', async (e) => {
 
   bulkSendBtn.disabled = true;
   bulkSendBtn.textContent = 'Sending bulk...';
+  const liveEl = document.getElementById('bulkLiveCount');
+  const messageElBulk = document.getElementById('message');
 
   try {
     const attachments = await readAttachments(document.getElementById('bulkAttachments'));
@@ -331,29 +333,79 @@ bulkForm.addEventListener('submit', async (e) => {
       addUnsubscribeLink
     };
     if (attachments.length) payload.attachments = attachments;
-    const res = await fetch('/api/send-bulk', {
+
+    const res = await fetch('/api/send-bulk-stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
 
-    const data = await res.json();
+    if (!res.ok || !res.body) {
+      const err = await res.json().catch(() => ({}));
+      showMessage(err.error || 'Request failed.', true);
+      return;
+    }
 
-    if (data.success) {
-      let msg = data.message || `Sent: ${data.sent}, Skipped: ${data.skipped}, Failed: ${data.failed}`;
-      if (data.failedEmails && data.failedEmails.length > 0) {
-        msg += '\nFailed: ' + data.failedEmails.map(f => f.email).join(', ');
+    hideMessage();
+    liveEl.hidden = false;
+    liveEl.className = 'bulk-live-count show';
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalData = null;
+
+    function processChunk(str) {
+      const parts = str.split('\n\n');
+      for (const part of parts) {
+        const m = part.match(/^data:\s*(.+)$/m);
+        if (!m) continue;
+        try {
+          const data = JSON.parse(m[1]);
+          if (data.done) {
+            finalData = data;
+            return;
+          }
+          const { sent = 0, skipped = 0, failed = 0, total = 0, processed = 0 } = data;
+          liveEl.innerHTML = 'Sending… <strong>Sent: ' + sent + '</strong> | Skipped: ' + skipped + ' | Failed: ' + failed + ' <span class="bulk-progress">(' + processed + ' / ' + total + ')</span>';
+        } catch (_) {}
+      }
+    }
+
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value || new Uint8Array(0), { stream: !done });
+      const idx = buffer.lastIndexOf('\n\n');
+      if (idx !== -1) {
+        processChunk(buffer.slice(0, idx + 2));
+        buffer = buffer.slice(idx + 2);
+      }
+      if (done) {
+        processChunk(buffer);
+        break;
+      }
+      if (finalData) break;
+    }
+
+    liveEl.hidden = true;
+    liveEl.className = 'bulk-live-count';
+
+    if (finalData) {
+      let msg = 'Sent: ' + finalData.sent + ', Skipped: ' + finalData.skipped + ', Failed: ' + finalData.failed;
+      if (finalData.failedEmails && finalData.failedEmails.length > 0) {
+        msg += ' — Failed: ' + finalData.failedEmails.map(f => f.email).join(', ');
       }
       showMessage(msg);
-      if (data.sent > 0) {
+      if (finalData.sent > 0) {
         bulkForm.reset();
         document.getElementById('bulkAttachments').value = '';
         document.getElementById('bulkAttachList').textContent = '';
       }
     } else {
-      showMessage(data.error || 'Something went wrong.', true);
+      showMessage('Done. Check counts above.', false);
     }
   } catch (err) {
+    if (liveEl) liveEl.hidden = true;
     showMessage('Cannot reach server. Open ' + (window.location.origin || 'http://localhost:3000') + ' and run: npm start', true);
   } finally {
     bulkSendBtn.disabled = false;
