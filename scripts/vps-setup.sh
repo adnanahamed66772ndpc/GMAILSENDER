@@ -23,6 +23,11 @@ APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 log() { printf "\n\033[1m%s\033[0m\n" "$*"; }
 
+get_public_ip() {
+  # Best-effort. If it fails, user can set BASE_URL manually.
+  curl -fsS --max-time 5 https://checkip.amazonaws.com 2>/dev/null | tr -d '\n' || true
+}
+
 if [[ "$(id -u)" -eq 0 ]]; then
   log "Please run as a normal user (not root). This script uses sudo when needed."
   exit 1
@@ -118,7 +123,20 @@ EOF
     sudo certbot --nginx -d "${DOMAIN}" --non-interactive --agree-tos -m "${CERTBOT_EMAIL:-admin@${DOMAIN}}" || true
   fi
 else
-  log "DOMAIN not set. Skipping Nginx site config."
+  log "DOMAIN not set. Using VPS IP access (http://<VPS_IP>:${APP_PORT})."
+  log "Opening firewall port ${APP_PORT}/tcp..."
+  sudo ufw allow "${APP_PORT}/tcp" >/dev/null || true
+
+  # Auto-set BASE_URL if not provided and not already present in .env
+  if ! grep -qE '^BASE_URL=' .env; then
+    PUB_IP="$(get_public_ip)"
+    if [[ -n "$PUB_IP" ]]; then
+      set_kv "BASE_URL" "http://${PUB_IP}:${APP_PORT}"
+      log "BASE_URL set to http://${PUB_IP}:${APP_PORT}"
+    else
+      log "Could not detect public IP. Set BASE_URL manually in .env for unsubscribe links."
+    fi
+  fi
 fi
 
 log "Done."
@@ -127,4 +145,6 @@ echo "- Local: http://127.0.0.1:${APP_PORT}"
 if [[ -n "${DOMAIN:-}" ]]; then
   echo "- Domain: http://${DOMAIN}  (or https://${DOMAIN} if SSL enabled)"
   echo "Important: set BASE_URL in .env to https://${DOMAIN} so unsubscribe links work."
+else
+  echo "- IP: http://<VPS_IP>:${APP_PORT}"
 fi
