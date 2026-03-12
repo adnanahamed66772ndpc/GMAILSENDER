@@ -98,6 +98,8 @@ if [[ -z "${SITE_PASSWORD:-}" ]] && ! grep -qE '^SITE_PASSWORD=.' .env 2>/dev/nu
   set_kv "SITE_PASSWORD" "$LOGIN_PASS_GENERATED"
 fi
 [[ -z "$LOGIN_USER_GENERATED" ]] && LOGIN_USER_GENERATED="$(grep -E '^SITE_USER=' .env 2>/dev/null | sed 's/^SITE_USER=//' | head -1)"
+# Show password in summary: use generated one or read from .env
+[[ -z "$LOGIN_PASS_GENERATED" ]] && LOGIN_PASS_GENERATED="$(grep -E '^SITE_PASSWORD=' .env 2>/dev/null | sed 's/^SITE_PASSWORD=//' | head -1)"
 
 [[ -n "${PORT:-}" ]] && set_kv "PORT" "${PORT}"
 [[ -n "${BASE_URL:-}" ]] && set_kv "BASE_URL" "${BASE_URL}"
@@ -184,11 +186,7 @@ echo "  LOGIN TO YOUR SITE (save this somewhere)"
 echo "=============================================="
 echo "  URL:      $FINAL_URL"
 echo "  Username: ${LOGIN_USER_GENERATED:-admin}"
-if [[ -n "$LOGIN_PASS_GENERATED" ]]; then
-  echo "  Password: $LOGIN_PASS_GENERATED"
-else
-  echo "  Password: (see SITE_PASSWORD in .env)"
-fi
+echo "  Password: ${LOGIN_PASS_GENERATED:-(not set - add SITE_PASSWORD to .env and restart PM2)}"
 echo "=============================================="
 echo ""
 if [[ -n "${DOMAIN:-}" ]]; then
