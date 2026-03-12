@@ -102,7 +102,9 @@ function buildTransporter() {
       secure,
       requireTLS: !secure,
       auth: { user: smtp.user, pass: smtp.pass || '' },
-      tls: secure ? undefined : { rejectUnauthorized: true }
+      tls: secure ? undefined : { rejectUnauthorized: true },
+      connectionTimeout: 15000,
+      greetingTimeout: 10000
     });
     return;
   }
@@ -112,7 +114,9 @@ function buildTransporter() {
       auth: {
         user: process.env.GMAIL_USER,
         pass: process.env.GMAIL_APP_PASSWORD
-      }
+      },
+      connectionTimeout: 15000,
+      greetingTimeout: 10000
     });
     return;
   }
@@ -298,7 +302,7 @@ app.post('/api/send', async (req, res) => {
   };
   if (attachmentsList) mailOptions.attachments = attachmentsList;
 
-  const SEND_TIMEOUT_MS = parseInt(process.env.SEND_TIMEOUT_MS, 10) || 30000;
+  const SEND_TIMEOUT_MS = parseInt(process.env.SEND_TIMEOUT_MS, 10) || 90000;
   try {
     const info = await Promise.race([
       transporter.sendMail(mailOptions),

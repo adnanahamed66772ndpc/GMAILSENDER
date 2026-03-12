@@ -268,7 +268,7 @@ form.addEventListener('submit', async (e) => {
   sendBtn.disabled = true;
   sendBtn.textContent = 'Sending...';
 
-  const FETCH_TIMEOUT_MS = 60000; // 60 seconds
+  const FETCH_TIMEOUT_MS = 120000; // 120 seconds (server send timeout is 90s)
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
