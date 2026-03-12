@@ -108,6 +108,7 @@ log "Installing PM2..."
 $RUN_SUDO npm i -g pm2
 
 log "Starting app with PM2..."
+pm2 delete "$PROJECT_NAME" 2>/dev/null || true
 pm2 start "$APP_DIR/server.js" --name "$PROJECT_NAME"
 pm2 save
 
