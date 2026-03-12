@@ -171,26 +171,31 @@ app.get('/api/ping', (req, res) => {
 
 // GET /api/smtp – current config (password masked)
 app.get('/api/smtp', (req, res) => {
-  const smtp = loadSmtpConfig();
-  if (smtp && smtp.host) {
+  try {
+    const smtp = loadSmtpConfig();
+    if (smtp && smtp.host) {
+      return res.json({
+        source: 'web',
+        host: smtp.host,
+        port: smtp.port || 587,
+        secure: smtp.secure === true,
+        user: smtp.user,
+        fromEmail: smtp.fromEmail || '',
+        fromName: smtp.fromName || '',
+        password: smtp.pass ? '********' : ''
+      });
+    }
     return res.json({
-      source: 'web',
-      host: smtp.host,
-      port: smtp.port || 587,
-      secure: smtp.secure === true,
-      user: smtp.user,
-      fromEmail: smtp.fromEmail || '',
-      fromName: smtp.fromName || '',
-      password: smtp.pass ? '********' : ''
+      source: 'env',
+      useGmail: !!process.env.GMAIL_USER,
+      fromName: process.env.GMAIL_FROM_NAME || '',
+      fromEmail: process.env.GMAIL_USER || '',
+      user: process.env.GMAIL_USER || ''
     });
+  } catch (e) {
+    console.error('GET /api/smtp error:', e);
+    return res.status(500).json({ success: false, error: e.message || 'Failed to load SMTP config' });
   }
-  res.json({
-    source: 'env',
-    useGmail: !!process.env.GMAIL_USER,
-    fromName: process.env.GMAIL_FROM_NAME || '',
-    fromEmail: process.env.GMAIL_USER || '',
-    user: process.env.GMAIL_USER || ''
-  });
 });
 
 // POST /api/smtp – save SMTP from web
@@ -220,8 +225,13 @@ app.post('/api/smtp', (req, res) => {
 
 // GET unsubscribed list (so UI can show / resubscribe)
 app.get('/api/unsubscribes', (req, res) => {
-  loadUnsubscribes();
-  res.json([...unsubscribedEmails].sort());
+  try {
+    loadUnsubscribes();
+    return res.json([...unsubscribedEmails].sort());
+  } catch (e) {
+    console.error('GET /api/unsubscribes error:', e);
+    return res.status(500).json({ success: false, error: e.message || 'Failed to load list' });
+  }
 });
 
 // DELETE remove one from unsubscribed list (resubscribe)
@@ -457,6 +467,13 @@ app.post('/api/send-bulk-stream', async (req, res) => {
 
   sendEvent({ done: true, ...results, total });
   res.end();
+});
+
+// Global error handler – catch unhandled errors and return JSON 500
+app.use((err, req, res, next) => {
+  console.error('Server error:', err);
+  if (res.headersSent) return next(err);
+  res.status(500).json({ success: false, error: err.message || 'Internal server error' });
 });
 
 app.listen(PORT, () => {
